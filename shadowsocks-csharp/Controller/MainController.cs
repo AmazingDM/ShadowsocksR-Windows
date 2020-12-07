@@ -1,4 +1,4 @@
-﻿using Shadowsocks.Controller.HttpRequest;
+using Shadowsocks.Controller.HttpRequest;
 using Shadowsocks.Controller.Service;
 using Shadowsocks.Enums;
 using Shadowsocks.Model;
@@ -11,7 +11,6 @@ using System.IO;
 using System.Linq;
 using System.Net.Sockets;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using System.Windows;
 
 namespace Shadowsocks.Controller
@@ -70,8 +69,6 @@ namespace Shadowsocks.Controller
                     server.SpeedLog = log;
                 }
             }
-
-            StartReleasingMemory();
         }
 
         private void ReportError(Exception e)
@@ -193,7 +190,7 @@ namespace Shadowsocks.Controller
             {
                 var urls = ssUrLs.GetLines().Reverse();
                 var i = 0;
-                foreach (var url in urls.Where(url => url.StartsWith(@"ss://", StringComparison.OrdinalIgnoreCase) || url.StartsWith(@"ssr://", StringComparison.OrdinalIgnoreCase)))
+                foreach (var url in urls.Select(url => url.Trim('/')).Where(url => url.StartsWith(@"ss://", StringComparison.OrdinalIgnoreCase) || url.StartsWith(@"ssr://", StringComparison.OrdinalIgnoreCase)))
                 {
                     ++i;
                     var server = new Server(url, force_group);
@@ -205,7 +202,10 @@ namespace Shadowsocks.Controller
                     {
                         var index = Global.GuiConfig.Index + 1;
                         if (index < 0 || index > Global.GuiConfig.Configs.Count)
+                        {
                             index = Global.GuiConfig.Configs.Count;
+                        }
+
                         Global.GuiConfig.Configs.Insert(index, server);
                     }
                 }
@@ -385,10 +385,7 @@ namespace Shadowsocks.Controller
 
             _listener?.Stop();
             _privoxyRunner?.Stop();
-            if (Global.GuiConfig.SysProxyMode != ProxyMode.NoModify && Global.GuiConfig.SysProxyMode != ProxyMode.Direct)
-            {
-                SystemProxy.SystemProxy.Update(Global.GuiConfig, true, null);
-            }
+            SystemProxy.Restore();
             ServerTransferTotal.Save(_transfer, Global.GuiConfig.Configs);
         }
 
@@ -466,7 +463,7 @@ namespace Shadowsocks.Controller
         private void StartPrivoxy()
         {
             const int max = 5;
-            var i = 1;
+            var i = 0;
             while (true)
             {
                 try
@@ -474,12 +471,9 @@ namespace Shadowsocks.Controller
                     _privoxyRunner.Start(Global.GuiConfig);
                     break;
                 }
-                catch (Win32Exception)
+                catch (Win32Exception) when (i < max)
                 {
-                    if (++i > max)
-                    {
-                        throw;
-                    }
+                    ++i;
                 }
             }
         }
@@ -540,7 +534,6 @@ namespace Shadowsocks.Controller
             Application.Current.Dispatcher?.InvokeAsync(() => { ConfigChanged?.Invoke(this, new EventArgs()); });
 
             UpdateSystemProxy();
-            Utils.ReleaseMemory();
         }
 
         private static void ThrowSocketException(ref Exception e)
@@ -548,7 +541,11 @@ namespace Shadowsocks.Controller
             // TODO:translate Microsoft language into human language
             // i.e. An attempt was made to access a socket in a way forbidden by its access permissions => Port already in use
             // https://docs.microsoft.com/zh-cn/dotnet/api/system.net.sockets.socketerror
-            if (!(e is SocketException se)) return;
+            if (e is not SocketException se)
+            {
+                return;
+            }
+
             switch (se.SocketErrorCode)
             {
                 case SocketError.AddressAlreadyInUse:
@@ -566,10 +563,7 @@ namespace Shadowsocks.Controller
 
         private void UpdateSystemProxy()
         {
-            if (Global.GuiConfig.SysProxyMode != ProxyMode.NoModify)
-            {
-                SystemProxy.SystemProxy.Update(Global.GuiConfig, false, _pacServer);
-            }
+            SystemProxy.Update(Global.GuiConfig, _pacServer);
         }
 
         private void PacDaemon_UserRuleFileChanged(object sender, EventArgs e)
@@ -621,22 +615,5 @@ namespace Shadowsocks.Controller
         {
             Clipboard.SetDataObject(_pacServer.PacUrl);
         }
-
-        #region Memory Management
-
-        private static void StartReleasingMemory()
-        {
-            Task.Factory.StartNew(() =>
-            {
-                while (true)
-                {
-                    Utils.ReleaseMemory(false);
-                    Task.Delay(30 * 1000).Wait();
-                }
-                // ReSharper disable once FunctionNeverReturns
-            }, TaskCreationOptions.LongRunning);
-        }
-
-        #endregion
     }
 }

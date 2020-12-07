@@ -1,8 +1,9 @@
-﻿using Shadowsocks.Util;
+using Shadowsocks.Util;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 
 namespace Shadowsocks.Model.Transfer
 {
@@ -11,7 +12,7 @@ namespace Shadowsocks.Model.Transfer
     {
         private const string LogFile = @"transfer_log.json";
 
-        public Dictionary<string, ServerTrans> Servers = new Dictionary<string, ServerTrans>();
+        public Dictionary<string, ServerTrans> Servers = new();
         private int _saveCounter;
         private DateTime _saveTime;
 
@@ -27,7 +28,7 @@ namespace Shadowsocks.Model.Transfer
                 {
                     config = new ServerTransferTotal
                     {
-                        Servers = JsonUtils.Deserialize<Dictionary<string, ServerTrans>>(File.ReadAllText(LogFile))
+                        Servers = JsonSerializer.Deserialize<Dictionary<string, ServerTrans>>(File.ReadAllText(LogFile))
                     };
                 }
                 else
@@ -69,7 +70,7 @@ namespace Shadowsocks.Model.Transfer
                     .ToDictionary(pair => pair.Key, pair => pair.Value);
                 }
                 var jsonString = JsonUtils.Serialize(config.Servers, true);
-                Utils.WriteAllTextAsync(LogFile, jsonString);
+                File.WriteAllTextAsync(LogFile, jsonString);
             }
             catch (IOException e)
             {

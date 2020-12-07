@@ -1,8 +1,4 @@
-﻿#if IsDotNetCore
 using System.Text.Json.Serialization;
-#else
-using Newtonsoft.Json;
-#endif
 using Shadowsocks.Enums;
 using Shadowsocks.Util;
 using Shadowsocks.ViewModel;
@@ -221,12 +217,12 @@ namespace Shadowsocks.Model
 
         private const int KeepVisitTime = 1800;
 
-        private readonly Dictionary<int, ServerSelectStrategy> _serverStrategyMap = new Dictionary<int, ServerSelectStrategy>();
+        private readonly Dictionary<int, ServerSelectStrategy> _serverStrategyMap = new();
 
         [JsonIgnore]
-        public Dictionary<int, PortMapConfigCache> PortMapCache { get; private set; } = new Dictionary<int, PortMapConfigCache>();
+        public Dictionary<int, PortMapConfigCache> PortMapCache { get; private set; } = new();
 
-        private readonly LRUCache<string, UriVisitTime> _uriCache = new LRUCache<string, UriVisitTime>(180);
+        private readonly LRUCache<string, UriVisitTime> _uriCache = new(180);
 
         #endregion
 
@@ -237,7 +233,9 @@ namespace Shadowsocks.Model
                 lock (_serverStrategyMap)
                 {
                     if (!_serverStrategyMap.ContainsKey(port))
+                    {
                         _serverStrategyMap[port] = new ServerSelectStrategy();
+                    }
 
                     if (_uriCache.ContainsKey(targetAddr))
                     {
@@ -267,7 +265,10 @@ namespace Shadowsocks.Model
             lock (_serverStrategyMap)
             {
                 if (!_serverStrategyMap.ContainsKey(port))
+                {
                     _serverStrategyMap[port] = new ServerSelectStrategy();
+                }
+
                 var serverStrategy = _serverStrategyMap[port];
 
                 _uriCache.SetTimeout(KeepVisitTime);
@@ -289,7 +290,10 @@ namespace Shadowsocks.Model
                         i = serverStrategy.Select(Configs, Index, BalanceType, delegate (Server server, Server selServer)
                         {
                             if (selServer != null)
+                            {
                                 return selServer.Group == server.Group;
+                            }
+
                             return false;
                         }, true);
                     }
@@ -308,7 +312,10 @@ namespace Shadowsocks.Model
                         i = serverStrategy.Select(Configs, Index, BalanceType, delegate (Server server, Server selServer)
                         {
                             if (selServer != null)
+                            {
                                 return selServer.Group == server.Group;
+                            }
+
                             return false;
                         });
                     }
@@ -316,7 +323,11 @@ namespace Shadowsocks.Model
                     {
                         i = serverStrategy.Select(Configs, Index, BalanceType, filter);
                     }
-                    if (i == -1) return GetErrorServer();
+                    if (i == -1)
+                    {
+                        return GetErrorServer();
+                    }
+
                     if (targetAddr != null)
                     {
                         var visit = new UriVisitTime
@@ -381,11 +392,17 @@ namespace Shadowsocks.Model
                 int key;
                 var pm = pair.Value;
                 if (!pm.Enable)
+                {
                     continue;
+                }
+
                 if (id2server.ContainsKey(pm.Id) || server_group.ContainsKey(pm.Id) || pm.Id == null || pm.Id.Length == 0)
                 { }
                 else
+                {
                     continue;
+                }
+
                 try
                 {
                     key = int.Parse(pair.Key);
@@ -408,7 +425,11 @@ namespace Shadowsocks.Model
                 var remove_ports = new List<int>();
                 foreach (var pair in _serverStrategyMap)
                 {
-                    if (PortMapCache.ContainsKey(pair.Key)) continue;
+                    if (PortMapCache.ContainsKey(pair.Key))
+                    {
+                        continue;
+                    }
+
                     remove_ports.Add(pair.Key);
                 }
                 foreach (var port in remove_ports)
@@ -416,7 +437,9 @@ namespace Shadowsocks.Model
                     _serverStrategyMap.Remove(port);
                 }
                 if (!PortMapCache.ContainsKey(LocalPort))
+                {
                     _serverStrategyMap.Remove(LocalPort);
+                }
             }
 
             _uriCache.Clear();
@@ -455,12 +478,10 @@ namespace Shadowsocks.Model
             LangName = string.Empty;
             DnsClients = new List<DnsClient>
             {
-#if IsDotNetCore
-                new DnsClient(DnsType.DnsOverTls) {DnsServer = @"1.1.1.1"},
-                new DnsClient(DnsType.Default) {DnsServer = @"1.1.1.1"},
-                new DnsClient(DnsType.DnsOverTls),
-                new DnsClient(DnsType.Default)
-#endif
+                new(DnsType.DnsOverTls) {DnsServer = @"1.1.1.1"},
+                new(DnsType.Default) {DnsServer = @"1.1.1.1"},
+                new(DnsType.DnsOverTls),
+                new(DnsType.Default)
             };
             ServerSubscribes = new List<ServerSubscribe>();
             PortMap = new Dictionary<string, PortMapConfig>();
@@ -551,7 +572,7 @@ namespace Shadowsocks.Model
 
         private static bool IsPort(int port)
         {
-            return port > IPEndPoint.MinPort && port <= IPEndPoint.MaxPort;
+            return port is > IPEndPoint.MinPort and <= IPEndPoint.MaxPort;
         }
     }
 }
